@@ -1,6 +1,7 @@
 // app/dashboard/office/page.tsx
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { ExportButton } from "@/components/export-button";
 
 /**
@@ -43,6 +44,21 @@ export default async function OfficeDashboardPage() {
       <h1 className="font-space-grotesk text-lg font-bold">
         Welcome, {profile.full_name}
       </h1>
+
+      <div className="grid grid-cols-2 gap-2">
+        <Link
+          href="/dashboard/office/staff"
+          className="rounded-xl border p-3 text-center text-sm font-semibold hover:bg-muted"
+        >
+          👥 Manage Staff
+        </Link>
+        <Link
+          href="/dashboard/office/exchange-history"
+          className="rounded-xl border p-3 text-center text-sm font-semibold hover:bg-muted"
+        >
+          🔄 Exchange History
+        </Link>
+      </div>
 
       {session ? (
         <div className="space-y-3 rounded-xl border p-4">

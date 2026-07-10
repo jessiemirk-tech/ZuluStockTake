@@ -60,8 +60,11 @@ zuluzenith-app/
     │   └── page.tsx
     ├── actions/
     │   ├── stock-counts.ts                     upsertStockCount, startStockTakeSession
-    │   └── exchange-logs.ts                    createExchangeLog
+    │   ├── exchange-logs.ts                    createExchangeLog
+    │   └── staff.ts                            setStaffActive (deactivate/reactivate)
     ├── api/
+    │   ├── admin/
+    │   │   └── create-staff/route.ts           office-only: creates staff/office logins
     │   └── export/
     │       ├── stock-take/route.ts             office-only .xlsx export
     │       └── exchange-log/route.ts           office-only .xlsx export
@@ -74,7 +77,11 @@ zuluzenith-app/
         │       └── exchange-form.tsx
         └── office/
             ├── page.tsx                        office dashboard + exports
-            └── exchange-history/page.tsx        full tenant log (office-only)
+            ├── exchange-history/page.tsx        full tenant log (office-only)
+            └── staff/
+                ├── page.tsx                     staff roster + add form
+                ├── add-staff-form.tsx            calls /api/admin/create-staff
+                └── staff-row-actions.tsx         deactivate/reactivate toggle
 ```
 
 Every `.ts`/`.tsx` file here passed `tsc --noEmit` with zero errors (validated
@@ -88,23 +95,36 @@ broken imports waiting to surprise you on the first Vercel build.
 Every file/route above is present and wired together end-to-end: sign in at
 `/login` → land on `/dashboard/counter` (staff) or `/dashboard/office`
 (office/super_admin) → count stock, log exchanges, and — office only —
-download both Excel exports. `middleware.ts` gates the routes, RLS gates the
-data, and the two `app/api/export/*/route.ts` handlers independently
-re-check role before generating anything.
+download both Excel exports or manage the team at
+`/dashboard/office/staff`. `middleware.ts` gates the routes, RLS gates the
+data, and the export/admin Route Handlers independently re-check role
+before doing anything.
+
+**Adding a new user** now works entirely in-app: Office → Manage Staff →
+fill in name/email/password/role → Create Account. That form posts to
+`app/api/admin/create-staff/route.ts`, the only place in the codebase that
+touches the Supabase service role. It re-verifies the caller is
+`office`/`super_admin` itself (never trusts the client), pins an `office`
+caller to their own `tenant_id` and blocks them from ever assigning
+`super_admin`, then calls `supabase.auth.admin.createUser()` with metadata
+that the existing `handle_new_user()` trigger turns into a correctly-scoped
+`profiles` row automatically — no manual SQL required for routine hires.
+Deactivating someone reuses the RLS policy already in the migration rather
+than the service role, since ordinary tenant-scoped UPDATE permissions are
+already sufficient for that.
 
 ## What's deliberately NOT included (next steps for you)
 
-- **Staff provisioning flow** — `handle_new_user()` trigger auto-creates a
-  `profiles` row from `auth.users.raw_user_meta_data`, but there's no admin
-  UI yet that calls `supabase.auth.admin.createUser()` (via
-  `createServiceRoleClient()`) to actually create staff logins. Build this
-  as a `office`/`super_admin`-gated Route Handler — never call
-  `createServiceRoleClient()` from anything a browser can reach directly.
 - **Catalog seeding** — `products`/`skus` tables are empty until you seed
   them. Write a one-off script that loads your 37 styles / 889 SKUs into
   `products`/`skus` via the service role client.
 - **`super_admin` tenant-management UI** — not built; same patterns as the
-  office dashboard pages above.
+  office dashboard pages above. The create-staff route already supports a
+  `super_admin` caller specifying any `tenantId`/`role`, so the UI is the
+  remaining piece.
+- **Password reset flow** — there's no "forgot password" page yet; today,
+  an Office user would need to deactivate + recreate an account, or you can
+  wire up `supabase.auth.resetPasswordForEmail()` on the login page.
 - **shadcn/ui primitives** — `tailwind.config.ts` is wired up, but run
   `npx shadcn@latest init` yourself if you want the actual component
   library referenced in your brief; the pages here use plain Tailwind
