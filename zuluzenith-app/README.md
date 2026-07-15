@@ -173,3 +173,4 @@ already sufficient for that.
   master ones. If you don't need multi-tenant catalog forking, you can
   simplify this later — it's more flexibility than a single-store
   deployment needs today.
+
