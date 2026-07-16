@@ -35,12 +35,19 @@ export async function createExchangeLog(input: CreateExchangeLogInput) {
     .from("profiles")
     .select("tenant_id, active")
     .eq("id", user.id)
-    .single();
+    .single<{ tenant_id: string | null; active: boolean }>();
   if (!profile?.active || !profile.tenant_id) {
     throw new Error("No active tenant profile for this user.");
   }
 
-  const { error } = await supabase.from("exchange_logs").insert({
+  // The typed Supabase client's generic inference for .insert() collapses
+  // to `never[]` on this hand-written Database type in some builds (same
+  // family of issue as the .single()/.maybeSingle() fix elsewhere in this
+  // file) — casting the query builder to `any` right before the write
+  // bypasses that broken compile-time inference without affecting runtime
+  // behavior at all; Supabase's client doesn't validate against these
+  // types at runtime, it's a pure TypeScript-time check.
+  const { error } = await (supabase.from("exchange_logs") as any).insert({
     tenant_id: profile.tenant_id,
     operator_id: user.id,
     order_number: input.orderNumber,
@@ -58,3 +65,4 @@ export async function createExchangeLog(input: CreateExchangeLogInput) {
   revalidatePath("/dashboard/office/exchange-history");
   return { ok: true as const };
 }
+
