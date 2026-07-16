@@ -22,8 +22,7 @@ export async function setStaffActive(profileId: string, active: boolean) {
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated.");
 
-  const { data, error } = await supabase
-    .from("profiles")
+  const { data, error } = await (supabase.from("profiles") as any)
     .update({ active })
     .eq("id", profileId)
     .eq("role", "staff") // matches the RLS with-check; also guards office from disabling itself
@@ -39,3 +38,4 @@ export async function setStaffActive(profileId: string, active: boolean) {
   revalidatePath("/dashboard/office/staff");
   return { ok: true as const };
 }
+
