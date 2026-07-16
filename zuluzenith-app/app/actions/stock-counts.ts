@@ -30,7 +30,7 @@ export async function upsertStockCount(input: UpsertCountInput) {
     .from("profiles")
     .select("tenant_id, active")
     .eq("id", user.id)
-    .single();
+    .single<{ tenant_id: string | null; active: boolean }>();
   if (profileError || !profile?.active || !profile.tenant_id) {
     throw new Error("No active tenant profile for this user.");
   }
@@ -42,7 +42,7 @@ export async function upsertStockCount(input: UpsertCountInput) {
     .select("front_count, boh_count")
     .eq("session_id", input.sessionId)
     .eq("sku_id", input.skuId)
-    .maybeSingle();
+    .maybeSingle<{ front_count: number | null; boh_count: number | null }>();
 
   const nextRow = {
     session_id: input.sessionId,
@@ -56,9 +56,10 @@ export async function upsertStockCount(input: UpsertCountInput) {
     updated_at: new Date().toISOString(),
   };
 
-  const { error } = await supabase
-    .from("stock_counts")
-    .upsert(nextRow, { onConflict: "session_id,sku_id" });
+  const { error } = await (supabase.from("stock_counts") as any).upsert(
+    nextRow,
+    { onConflict: "session_id,sku_id" }
+  );
 
   if (error) throw new Error(`Failed to save count: ${error.message}`);
 
@@ -83,20 +84,22 @@ export async function startStockTakeSession() {
     .from("profiles")
     .select("tenant_id, role")
     .eq("id", user.id)
-    .single();
+    .single<{ tenant_id: string | null; role: string }>();
 
   if (!profile || (profile.role !== "office" && profile.role !== "super_admin")) {
     throw new Error("Only Office accounts can start a new stock take.");
   }
 
-  const { data, error } = await supabase
-    .from("stock_take_sessions")
+  const { data, error } = await (
+    supabase.from("stock_take_sessions") as any
+  )
     .insert({ tenant_id: profile.tenant_id!, started_by: user.id })
     .select("id")
     .single();
 
   if (error) throw new Error(`Could not start session: ${error.message}`);
+  if (!data) throw new Error("Session was created but no id was returned.");
 
   revalidatePath("/dashboard");
-  return { sessionId: data.id };
-}
+  return { sessionId: (data as { id: string }).id };
+
